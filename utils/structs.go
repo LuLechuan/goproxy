@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/snail007/goproxy/services/kcpcfg"
-	"github.com/snail007/goproxy/utils/sni"
+	"github.com/LuLechuan/goproxy/services/kcpcfg"
+	"github.com/LuLechuan/goproxy/utils/sni"
 
 	"github.com/golang/snappy"
 	"github.com/miekg/dns"

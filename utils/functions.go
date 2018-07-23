@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/snail007/goproxy/services/kcpcfg"
+	"github.com/LuLechuan/goproxy/services/kcpcfg"
 
 	"golang.org/x/crypto/pbkdf2"
 
@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snail007/goproxy/utils/id"
+	"github.com/LuLechuan/goproxy/utils/id"
 
 	kcp "github.com/xtaci/kcp-go"
 )

@@ -4,6 +4,7 @@ RUN apk update && apk upgrade && \
     apk add --no-cache git && cd /go/src/ && git clone https://github.com/LuLechuan/goproxy && \
 	cd goproxy && git checkout ${GOPROXY_VERSION} && \
     go get && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o proxy
-FROM alpine:3.7
-COPY --from=builder /go/src/goproxy/proxy /
-CMD /proxy ${OPTS}
+# FROM alpine:3.7
+# COPY --from=builder /go/src/goproxy/proxy /
+#COPY /go/src/goproxy/proxy /
+# CMD /proxy ${OPTS}
