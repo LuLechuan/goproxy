@@ -233,7 +233,7 @@ func (s *HTTP) Start(args interface{}, log *logger.Logger) (err error) {
 			if err != nil {
 				return
 			}
-			s.log.Printf("%s http(s) proxy on %s, did it really change anything?", *s.cfg.LocalType, (*sc.Listener).Addr())
+			s.log.Printf("%s http(s) proxy on %s", *s.cfg.LocalType, (*sc.Listener).Addr())
 			s.serverChannels = append(s.serverChannels, &sc)
 		}
 	}
@@ -244,6 +244,7 @@ func (s *HTTP) Clean() {
 	s.StopService()
 }
 func (s *HTTP) callback(inConn net.Conn) {
+	s.log.Println("The callback is invoked")
 	defer func() {
 		if err := recover(); err != nil {
 			s.log.Printf("http(s) conn handler crashed with err : %s \nstack: %s", err, string(debug.Stack()))
