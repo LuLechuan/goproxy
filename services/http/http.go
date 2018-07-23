@@ -244,7 +244,6 @@ func (s *HTTP) Clean() {
 	s.StopService()
 }
 func (s *HTTP) callback(inConn net.Conn) {
-	s.log.Println("The callback is invoked")
 	defer func() {
 		if err := recover(); err != nil {
 			s.log.Printf("http(s) conn handler crashed with err : %s \nstack: %s", err, string(debug.Stack()))
@@ -270,11 +269,12 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	address := req.Host
 	host, _, _ := net.SplitHostPort(address)
-	s.log.Printf("This is the host we want: %s, or this is the parent proxy host?", host)
+	s.log.Printf("Is this the host we want: %s, or this is the parent proxy host?", host)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
 		useProxy = true
 		if *s.cfg.Parent == "" {
+			s.log.Println("There is no parent")
 			useProxy = false
 		} else if *s.cfg.Always {
 			useProxy = true
@@ -291,6 +291,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
 
 	err = s.OutToTCP(useProxy, address, &inConn, &req)
+	s.log.Println("It doesn't make sense if this is right after")
 	if err != nil {
 		if *s.cfg.Parent == "" {
 			s.log.Printf("connect to %s fail, ERR:%s", address, err)
@@ -301,10 +302,12 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 }
 func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *utils.HTTPRequest) (err interface{}) {
+	s.log.Println("Start checking errors")
 	inAddr := (*inConn).RemoteAddr().String()
 	inLocalAddr := (*inConn).LocalAddr().String()
 	//防止死循环
 	if s.IsDeadLoop(inLocalAddr, req.Host) {
+		s.log.Println("There is a deadloop")
 		utils.CloseConn(inConn)
 		err = fmt.Errorf("dead loop detected , %s", req.Host)
 		return
@@ -314,6 +317,7 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 	maxTryCount := 5
 	for {
 		if s.isStop {
+			s.log.Println("S is stopped")
 			return
 		}
 		if useProxy {
@@ -348,9 +352,11 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		})
 	}
 	outAddr := outConn.RemoteAddr().String()
+	s.log.Println("At least I reached here")
 	//outLocalAddr := outConn.LocalAddr().String()
 	if req.IsHTTPS() && (!useProxy || *s.cfg.ParentType == "ssh") {
 		//https无上级或者上级非代理,proxy需要响应connect请求,并直连目标
+		s.log.Println("Type 1")
 		err = req.HTTPSReply()
 	} else {
 		//https或者http,上级是代理,proxy需要转发
@@ -358,8 +364,10 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		//直连目标或上级非代理或非SNI,清理HTTP头部的代理头信息.
 		if (!useProxy || *s.cfg.ParentType == "ssh") && !req.IsSNI {
 			_, err = outConn.Write(utils.RemoveProxyHeaders(req.HeadBuf))
+			s.log.Println("Type 2")
 		} else {
 			_, err = outConn.Write(req.HeadBuf)
+			s.log.Println("Type 3")
 		}
 		outConn.SetDeadline(time.Time{})
 		if err != nil {
@@ -368,7 +376,7 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 			return
 		}
 	}
-
+	s.log.Println("Almost there")
 	utils.IoBind((*inConn), outConn, func(err interface{}) {
 		s.log.Printf("conn %s - %s released [%s]", inAddr, outAddr, req.Host)
 		s.userConns.Remove(inAddr)
