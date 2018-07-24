@@ -244,6 +244,7 @@ func (s *HTTP) Clean() {
 	s.StopService()
 }
 func (s *HTTP) callback(inConn net.Conn) {
+	s.log.Println("The callback is triggered")
 	defer func() {
 		if err := recover(); err != nil {
 			s.log.Printf("http(s) conn handler crashed with err : %s \nstack: %s", err, string(debug.Stack()))
