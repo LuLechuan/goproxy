@@ -44,6 +44,7 @@ type CheckerItem struct {
 //timeout : tcp timeout milliseconds ,connect to host
 //interval: recheck domain interval seconds
 func NewChecker(timeout int, interval int64, blockedFile, directFile string, log *logger.Logger) Checker {
+	log.Println("I am at new checher")
 	ch := Checker{
 		data:     NewConcurrentMap(),
 		interval: interval,
@@ -51,8 +52,13 @@ func NewChecker(timeout int, interval int64, blockedFile, directFile string, log
 		isStop:   false,
 		log:      log,
 	}
+	log.Printf("Blocked file: %s", blockedFile)
+	log.Printf("DirectedFile: %s", directFile)
 	ch.blockedMap = ch.loadMap(blockedFile)
 	ch.directMap = ch.loadMap(directFile)
+	log.Println(ch.blockedMap)
+	log.Println(ch.blockedMap.IsEmpty())
+	log.Println("Above, true or false")
 	if !ch.blockedMap.IsEmpty() {
 		log.Printf("blocked file loaded , domains : %d", ch.blockedMap.Count())
 	}
