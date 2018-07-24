@@ -251,11 +251,9 @@ func (s *HTTP) callback(inConn net.Conn) {
 		}
 	}()
 	if *s.cfg.LocalCompress {
-		s.log.Println("I got the connection here 1111111")
 		inConn = utils.NewCompConn(inConn)
 	}
 	if *s.cfg.LocalKey != "" {
-		s.log.Println("I got the connection there 222222")
 		inConn = conncrypt.New(inConn, &conncrypt.Config{
 			Password: *s.cfg.LocalKey,
 		})
@@ -273,12 +271,10 @@ func (s *HTTP) callback(inConn net.Conn) {
 	address := req.Host
 	s.log.Printf("The address: %s", address)
 	host, _, _ := net.SplitHostPort(address)
-	s.log.Printf("Is this the host we want: %s, or this is the parent proxy host?", host)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
 		useProxy = true
 		if *s.cfg.Parent == "" {
-			s.log.Println("There is no parent")
 			useProxy = false
 		} else if *s.cfg.Always {
 			useProxy = true
@@ -304,8 +300,15 @@ func (s *HTTP) callback(inConn net.Conn) {
 		utils.CloseConn(&inConn)
 	}
 }
+
+func (s *HTTP) PrepareOutAddr(address string) {
+	if strings.Contains(address, ".com") {
+		// TODO: remove hard code
+		*s.cfg.Parent = "209.205.219.26:3000"
+	}
+}
+
 func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *utils.HTTPRequest) (err interface{}) {
-	s.log.Println("Start checking errors")
 	inAddr := (*inConn).RemoteAddr().String()
 	inLocalAddr := (*inConn).LocalAddr().String()
 	//防止死循环
@@ -315,12 +318,12 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		err = fmt.Errorf("dead loop detected , %s", req.Host)
 		return
 	}
+	s.PrepareOutAddr(address)
 	var outConn net.Conn
 	tryCount := 0
 	maxTryCount := 5
 	for {
 		if s.isStop {
-			s.log.Println("S is stopped")
 			return
 		}
 		if useProxy {
@@ -355,7 +358,6 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		})
 	}
 	outAddr := outConn.RemoteAddr().String()
-	s.log.Println("At least I reached here")
 	//outLocalAddr := outConn.LocalAddr().String()
 	if req.IsHTTPS() && (!useProxy || *s.cfg.ParentType == "ssh") {
 		//https无上级或者上级非代理,proxy需要响应connect请求,并直连目标
@@ -379,7 +381,6 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 			return
 		}
 	}
-	s.log.Println("Almost there")
 	utils.IoBind((*inConn), outConn, func(err interface{}) {
 		s.log.Printf("conn %s - %s released [%s]", inAddr, outAddr, req.Host)
 		s.userConns.Remove(inAddr)

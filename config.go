@@ -38,6 +38,13 @@ var (
 	isDebug                                                                                                   bool
 )
 
+type ProxyIP string
+
+const (
+	USProxy ProxyIP = "209.205.219.26:3000"
+	CNProxy ProxyIP = "111.222.333.44:3000"
+)
+
 func initConfig() (err error) {
 	//define  args
 	tcpArgs := tcpx.TCPArgs{}
@@ -82,7 +89,7 @@ func initConfig() (err error) {
 
 	//########http#########
 	http := app.Command("http", "proxy on http mode")
-	httpArgs.Parent = http.Flag("parent", "parent address, such as: \"23.32.32.19:28008\"").Default("").Short('P').String()
+	httpArgs.Parent = http.Flag("parent", "parent address, such as: \"209.205.219.26:3000\"").Default("").Short('P').String()
 	httpArgs.CaCertFile = http.Flag("ca", "ca cert file for tls").Default("").String()
 	httpArgs.CertFile = http.Flag("cert", "cert file for tls").Short('C').Default("proxy.crt").String()
 	httpArgs.KeyFile = http.Flag("key", "key file for tls").Short('K').Default("proxy.key").String()
