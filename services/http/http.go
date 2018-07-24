@@ -137,7 +137,9 @@ func (s *HTTP) CheckArgs() (err error) {
 }
 func (s *HTTP) InitService() (err error) {
 	s.InitBasicAuth()
+	s.log.Println("Basic auth inited")
 	if *s.cfg.Parent != "" {
+		s.log.Println("I am gonna check")
 		s.checker = utils.NewChecker(*s.cfg.HTTPTimeout, int64(*s.cfg.Interval), *s.cfg.Blocked, *s.cfg.Direct, s.log)
 	}
 	if *s.cfg.DNSAddress != "" {
@@ -268,6 +270,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 		return
 	}
 	address := req.Host
+	s.log.Printf("The address: %s", address)
 	host, _, _ := net.SplitHostPort(address)
 	s.log.Printf("Is this the host we want: %s, or this is the parent proxy host?", host)
 	useProxy := false
@@ -291,7 +294,6 @@ func (s *HTTP) callback(inConn net.Conn) {
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
 
 	err = s.OutToTCP(useProxy, address, &inConn, &req)
-	s.log.Println("It doesn't make sense if this is right after")
 	if err != nil {
 		if *s.cfg.Parent == "" {
 			s.log.Printf("connect to %s fail, ERR:%s", address, err)
