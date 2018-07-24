@@ -251,9 +251,11 @@ func (s *HTTP) callback(inConn net.Conn) {
 		}
 	}()
 	if *s.cfg.LocalCompress {
+		s.log.Println("I got the connection here 1111111")
 		inConn = utils.NewCompConn(inConn)
 	}
 	if *s.cfg.LocalKey != "" {
+		s.log.Println("I got the connect there 222222")
 		inConn = conncrypt.New(inConn, &conncrypt.Config{
 			Password: *s.cfg.LocalKey,
 		})
