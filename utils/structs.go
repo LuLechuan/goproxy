@@ -70,13 +70,13 @@ func (c *Checker) loadMap(f string) (dataMap ConcurrentMap) {
 	dataMap = NewConcurrentMap()
 	if PathExists(f) {
 		_contents, err := ioutil.ReadFile(f)
-		c.log.Println(_contents)
 		if err != nil {
 			c.log.Printf("load file err:%s", err)
 			return
 		}
 		for _, line := range strings.Split(string(_contents), "\n") {
 			line = strings.Trim(line, "\r \t")
+			c.log.Println(line)
 			if line != "" {
 				dataMap.Set(line, true)
 			}
