@@ -141,6 +141,7 @@ func (s *HTTP) InitService() (err error) {
 	if *s.cfg.Parent != "" {
 		s.log.Println("I am gonna check")
 		s.checker = utils.NewChecker(*s.cfg.HTTPTimeout, int64(*s.cfg.Interval), *s.cfg.Blocked, *s.cfg.Direct, s.log)
+		s.log.Println("Checked")
 	}
 	if *s.cfg.DNSAddress != "" {
 		(*s).domainResolver = utils.NewDomainResolver(*s.cfg.DNSAddress, *s.cfg.DNSTTL, s.log)
