@@ -74,8 +74,11 @@ func NewChecker(timeout int, interval int64, blockedFile, directFile string, log
 
 func (c *Checker) loadMap(f string) (dataMap ConcurrentMap) {
 	dataMap = NewConcurrentMap()
+	c.log.Println("Loading map")
 	if PathExists(f) {
+		c.log.Println("Path exists")
 		_contents, err := ioutil.ReadFile(f)
+		c.log.Println(_contents)
 		if err != nil {
 			c.log.Printf("load file err:%s", err)
 			return
