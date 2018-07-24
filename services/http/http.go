@@ -270,6 +270,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	address := req.Host
 	s.log.Printf("The address: %s", address)
+	s.PrepareOutAddr(address)
 	host, _, _ := net.SplitHostPort(address)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
@@ -318,7 +319,6 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		err = fmt.Errorf("dead loop detected , %s", req.Host)
 		return
 	}
-	s.PrepareOutAddr(address)
 	var outConn net.Conn
 	tryCount := 0
 	maxTryCount := 5
