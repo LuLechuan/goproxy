@@ -277,8 +277,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	address := req.Host
 	s.log.Printf("The address: %s", address)
-	s.PrepareOutAddr(address)
-	s.InitOutConnPool()
+	parentAddress := s.PrepareOutAddr(address)
 	host, _, _ := net.SplitHostPort(address)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
@@ -299,7 +298,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
 
-	err = s.OutToTCP(useProxy, address, &inConn, &req)
+	err = s.OutToTCP(useProxy, address, &inConn, &req, parentAddress)
 	if err != nil {
 		if *s.cfg.Parent == "" {
 			s.log.Printf("connect to %s fail, ERR:%s", address, err)
@@ -310,15 +309,17 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 }
 
-func (s *HTTP) PrepareOutAddr(address string) {
+func (s *HTTP) PrepareOutAddr(address string) string {
 	if strings.Contains(address, ".cn") || strings.Contains(address, "/cn") {
 		*s.cfg.Parent = string(CNProxy)
+		return string(CNProxy)
 	} else {
 		*s.cfg.Parent = string(USProxy)
+		return string(USProxy)
 	}
 }
 
-func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *utils.HTTPRequest) (err interface{}) {
+func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *utils.HTTPRequest, parentAddress string) (err interface{}) {
 	inAddr := (*inConn).RemoteAddr().String()
 	inLocalAddr := (*inConn).LocalAddr().String()
 	//防止死循环
@@ -340,7 +341,7 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 				outConn, err = s.getSSHConn(address)
 			} else {
 				// s.log.Printf("%v", s.outPool)
-				outConn, err = s.outPool.Get()
+				outConn, err = utils.ConnectHost(parentAddress, *s.cfg.Timeout)
 			}
 		} else {
 			outConn, err = utils.ConnectHost(s.Resolve(address), *s.cfg.Timeout)

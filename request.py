@@ -23,7 +23,7 @@ def load_input():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        '-i', '--ip', help='IP of the request website', required=True, type=str)
+        '-i', '--ip', help='IP of the request website', required=True, type=str, dest='i')
     return parser.parse_args()
 
 if __name__ == '__main__':
