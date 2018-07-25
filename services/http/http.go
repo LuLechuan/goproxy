@@ -311,7 +311,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 }
 
 func (s *HTTP) PrepareOutAddr(address string) {
-	if strings.Contains(address, ".cn") {
+	if strings.Contains(address, ".cn") || strings.Contains(address, "/cn") {
 		*s.cfg.Parent = string(CNProxy)
 	} else {
 		*s.cfg.Parent = string(USProxy)
