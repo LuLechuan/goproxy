@@ -277,7 +277,8 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	address := req.Host
 	s.log.Printf("The address: %s", address)
-
+	s.PrepareOutAddr(address)
+	s.InitOutConnPool()
 	host, _, _ := net.SplitHostPort(address)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
@@ -299,12 +300,6 @@ func (s *HTTP) callback(inConn net.Conn) {
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
 
 	err = s.OutToTCP(useProxy, address, &inConn, &req)
-	if err != nil && (*s.cfg.Parent == "" || !IsInProxyList(*s.cfg.Parent)) {
-		useProxy = true
-		s.PrepareOutAddr(address)
-		s.InitOutConnPool()
-		err = s.OutToTCP(useProxy, address, &inConn, &req)
-	}
 	if err != nil {
 		if *s.cfg.Parent == "" {
 			s.log.Printf("connect to %s fail, ERR:%s", address, err)
@@ -313,16 +308,6 @@ func (s *HTTP) callback(inConn net.Conn) {
 		}
 		utils.CloseConn(&inConn)
 	}
-}
-
-func IsInProxyList(proxyIP string) bool {
-	if proxyIP == string(USProxy) {
-		return true
-	}
-	if proxyIP == string(CNProxy) {
-		return true
-	}
-	return false
 }
 
 func (s *HTTP) PrepareOutAddr(address string) {
