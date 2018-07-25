@@ -72,6 +72,13 @@ type HTTP struct {
 	log            *logger.Logger
 }
 
+type ProxyIP string
+
+const (
+	USProxy ProxyIP = "209.205.219.26:3000"
+	CNProxy ProxyIP = "111.222.333.44:3000"
+)
+
 func NewHTTP() services.Service {
 	return &HTTP{
 		outPool:        utils.OutConn{},
@@ -270,7 +277,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	address := req.Host
 	s.log.Printf("The address: %s", address)
-	s.PrepareOutAddr(address)
+
 	host, _, _ := net.SplitHostPort(address)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
@@ -292,6 +299,12 @@ func (s *HTTP) callback(inConn net.Conn) {
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
 
 	err = s.OutToTCP(useProxy, address, &inConn, &req)
+	if err != nil && (*s.cfg.Parent == "" || !IsInProxyList(*s.cfg.Parent)) {
+		useProxy = true
+		s.PrepareOutAddr(address)
+		s.InitOutConnPool()
+		err = s.OutToTCP(useProxy, address, &inConn, &req)
+	}
 	if err != nil {
 		if *s.cfg.Parent == "" {
 			s.log.Printf("connect to %s fail, ERR:%s", address, err)
@@ -302,10 +315,21 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 }
 
+func IsInProxyList(proxyIP string) bool {
+	if proxyIP == string(USProxy) {
+		return true
+	}
+	if proxyIP == string(CNProxy) {
+		return true
+	}
+	return false
+}
+
 func (s *HTTP) PrepareOutAddr(address string) {
-	if strings.Contains(address, ".com") {
-		// TODO: remove hard code
-		*s.cfg.Parent = "209.205.219.26:3000"
+	if strings.Contains(address, ".cn") {
+		*s.cfg.Parent = string(CNProxy)
+	} else {
+		*s.cfg.Parent = string(USProxy)
 	}
 }
 
@@ -347,7 +371,7 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 	if err != nil {
 		s.log.Printf("connect to %s , err:%s", *s.cfg.Parent, err)
 		utils.CloseConn(inConn)
-		return
+		return err
 	}
 	if *s.cfg.ParentCompress {
 		outConn = utils.NewCompConn(outConn)
@@ -361,7 +385,6 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 	//outLocalAddr := outConn.LocalAddr().String()
 	if req.IsHTTPS() && (!useProxy || *s.cfg.ParentType == "ssh") {
 		//https无上级或者上级非代理,proxy需要响应connect请求,并直连目标
-		s.log.Println("Type 1")
 		err = req.HTTPSReply()
 	} else {
 		//https或者http,上级是代理,proxy需要转发
@@ -369,10 +392,8 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		//直连目标或上级非代理或非SNI,清理HTTP头部的代理头信息.
 		if (!useProxy || *s.cfg.ParentType == "ssh") && !req.IsSNI {
 			_, err = outConn.Write(utils.RemoveProxyHeaders(req.HeadBuf))
-			s.log.Println("Type 2")
 		} else {
 			_, err = outConn.Write(req.HeadBuf)
-			s.log.Println("Type 3")
 		}
 		outConn.SetDeadline(time.Time{})
 		if err != nil {

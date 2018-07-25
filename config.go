@@ -38,13 +38,6 @@ var (
 	isDebug                                                                                                   bool
 )
 
-type ProxyIP string
-
-const (
-	USProxy ProxyIP = "209.205.219.26:3000"
-	CNProxy ProxyIP = "111.222.333.44:3000"
-)
-
 func initConfig() (err error) {
 	//define  args
 	tcpArgs := tcpx.TCPArgs{}
