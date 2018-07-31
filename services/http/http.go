@@ -70,13 +70,15 @@ type HTTP struct {
 	serverChannels []*utils.ServerChannel
 	userConns      utils.ConcurrentMap
 	log            *logger.Logger
+	patternTable   *PatternTableImpl
+	cache          *CacheImpl
 }
 
 type ProxyIP string
 
 const (
 	USProxy ProxyIP = "209.205.219.26:3000"
-	CNProxy ProxyIP = "111.222.333.44:3000"
+	CNProxy ProxyIP = "3010.usa.rotating.proxyrack.net:3010"
 )
 
 func NewHTTP() services.Service {
@@ -144,6 +146,18 @@ func (s *HTTP) CheckArgs() (err error) {
 }
 func (s *HTTP) InitService() (err error) {
 	s.InitBasicAuth()
+	// TODO: Remove hard codes
+	sqlConnString := fmt.Sprintf("%s@tcp(%s)/%s", "root:root", "localhost:3307", "taskdb")
+	patternTable, err := NewPatternTable(sqlConnString, "pattern_table")
+	if err != nil {
+		s.log.Printf("Connect to database failed: %s", err)
+	}
+	s.patternTable = patternTable
+	cache, err := NewCache(sqlConnString, "proxy_table")
+	if err != nil {
+		s.log.Printf("Connect to database failed: %s", err)
+	}
+	s.cache = cache
 	if *s.cfg.Parent != "" {
 		s.checker = utils.NewChecker(*s.cfg.HTTPTimeout, int64(*s.cfg.Interval), *s.cfg.Blocked, *s.cfg.Direct, s.log)
 	}
@@ -251,7 +265,6 @@ func (s *HTTP) Clean() {
 	s.StopService()
 }
 func (s *HTTP) callback(inConn net.Conn) {
-	s.log.Println("The callback is triggered")
 	defer func() {
 		if err := recover(); err != nil {
 			s.log.Printf("http(s) conn handler crashed with err : %s \nstack: %s", err, string(debug.Stack()))
@@ -267,7 +280,10 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	var err interface{}
 	var req utils.HTTPRequest
+	t0 := time.Now().UnixNano() / int64(time.Millisecond)
 	req, err = utils.NewHTTPRequest(&inConn, 4096, s.IsBasicAuth(), &s.basicAuth, s.log)
+	t1 := time.Now().UnixNano() / int64(time.Millisecond)
+	s.log.Printf("Time to generate new http request: %d", (t1 - t0))
 	if err != nil {
 		if err != io.EOF {
 			s.log.Printf("decoder error , from %s, ERR:%s", inConn.RemoteAddr(), err)
@@ -277,8 +293,7 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 	address := req.Host
 	s.log.Printf("The address: %s", address)
-	s.PrepareOutAddr(address)
-	s.InitOutConnPool()
+	parentAddress := s.PrepareOutAddr(address)
 	host, _, _ := net.SplitHostPort(address)
 	useProxy := false
 	if !utils.IsIternalIP(host, *s.cfg.Always) {
@@ -297,9 +312,13 @@ func (s *HTTP) callback(inConn net.Conn) {
 		}
 	}
 
+	if parentAddress == "" {
+		useProxy = false
+	}
+
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
 
-	err = s.OutToTCP(useProxy, address, &inConn, &req)
+	err = s.OutToTCP(useProxy, address, &inConn, &req, parentAddress)
 	if err != nil {
 		if *s.cfg.Parent == "" {
 			s.log.Printf("connect to %s fail, ERR:%s", address, err)
@@ -310,15 +329,21 @@ func (s *HTTP) callback(inConn net.Conn) {
 	}
 }
 
-func (s *HTTP) PrepareOutAddr(address string) {
-	if strings.Contains(address, ".cn") || strings.Contains(address, "/cn") {
-		*s.cfg.Parent = string(CNProxy)
-	} else {
-		*s.cfg.Parent = string(USProxy)
+func (s *HTTP) PrepareOutAddr(address string) string {
+	str := strings.Split(address, ":")
+	url := str[0]
+	proxyName, useProxy := s.patternTable.Get(url)
+	if useProxy {
+		proxy, err := s.cache.GetProxy(proxyName)
+		if err != nil {
+			s.log.Printf("Get proxy failed: %s", err)
+		}
+		return proxy.IP
 	}
+	return ""
 }
 
-func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *utils.HTTPRequest) (err interface{}) {
+func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *utils.HTTPRequest, parentAddress string) (err interface{}) {
 	inAddr := (*inConn).RemoteAddr().String()
 	inLocalAddr := (*inConn).LocalAddr().String()
 	//防止死循环
@@ -340,7 +365,10 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 				outConn, err = s.getSSHConn(address)
 			} else {
 				// s.log.Printf("%v", s.outPool)
-				outConn, err = s.outPool.Get()
+				t0 := time.Now().UnixNano() / int64(time.Millisecond)
+				outConn, err = utils.ConnectHost(parentAddress, *s.cfg.Timeout)
+				t1 := time.Now().UnixNano() / int64(time.Millisecond)
+				s.log.Printf("Time to connect to proxy: %d", (t1 - t0))
 			}
 		} else {
 			outConn, err = utils.ConnectHost(s.Resolve(address), *s.cfg.Timeout)
@@ -367,6 +395,7 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 		})
 	}
 	outAddr := outConn.RemoteAddr().String()
+	t00 := time.Now().UnixNano() / int64(time.Millisecond)
 	//outLocalAddr := outConn.LocalAddr().String()
 	if req.IsHTTPS() && (!useProxy || *s.cfg.ParentType == "ssh") {
 		//https无上级或者上级非代理,proxy需要响应connect请求,并直连目标
@@ -387,6 +416,8 @@ func (s *HTTP) OutToTCP(useProxy bool, address string, inConn *net.Conn, req *ut
 			return
 		}
 	}
+	t01 := time.Now().UnixNano() / int64(time.Millisecond)
+	s.log.Printf("Time for connection: %d", (t01 - t00))
 	utils.IoBind((*inConn), outConn, func(err interface{}) {
 		s.log.Printf("conn %s - %s released [%s]", inAddr, outAddr, req.Host)
 		s.userConns.Remove(inAddr)

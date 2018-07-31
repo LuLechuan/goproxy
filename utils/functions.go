@@ -421,6 +421,21 @@ func TlsBytes(cert, key string) (certBytes, keyBytes []byte, err error) {
 	}
 	return
 }
+
+func GetIPFromAPI(apiURL string) (string, error) {
+	res, err := http.Get(apiURL)
+	if err != nil {
+		return "", err
+	}
+	ips, err := ioutil.ReadAll(res.Body)
+	ipStrings := strings.Split(string(ips), "\n")
+	res.Body.Close()
+	if err != nil {
+		return "", err
+	}
+	return ipStrings[0], nil
+}
+
 func GetKCPBlock(method, key string) (block kcp.BlockCrypt) {
 	pass := pbkdf2.Key([]byte(key), []byte(key), 4096, 32, sha1.New)
 	switch method {
