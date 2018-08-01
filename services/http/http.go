@@ -1,11 +1,13 @@
 package http
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	logger "log"
 	"net"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -18,6 +20,35 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+// LoadConfig - reads and parses config json file
+func LoadConfig(fileName string) *Config {
+	if fileName == "" {
+		fileName = "development" // default config
+	}
+	file, err := os.Open(fmt.Sprintf(".services/http/configs/%s.json", fileName))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	decoder := json.NewDecoder(file)
+	config := Config{}
+	err = decoder.Decode(&config)
+	fmt.Println(fmt.Sprintf("%s.json", fileName))
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	return &config
+}
+
+// Config - stores config values
+type Config struct {
+	SQLEndpoint      string `json:"mysql_endpoint"`
+	SQLCredentials   string `json:"mysql_credentials"`
+	SQLDbName        string `json:"sql_database_name"`
+	PatternTableName string `json:"pattern_table_name"`
+	ProxyTableName   string `json:"proxy_table_name"`
+}
 
 type HTTPArgs struct {
 	Parent              *string
@@ -147,13 +178,15 @@ func (s *HTTP) CheckArgs() (err error) {
 func (s *HTTP) InitService() (err error) {
 	s.InitBasicAuth()
 	// TODO: Remove hard codes
-	sqlConnString := fmt.Sprintf("%s@tcp(%s)/%s", "root:root", "localhost:3307", "taskdb")
-	patternTable, err := NewPatternTable(sqlConnString, "pattern_table")
+	configPath := os.Getenv("DEPLOY_ENV")
+	config := LoadConfig(configPath)
+	sqlConnString := fmt.Sprintf("%s@tcp(%s)/%s", config.SQLCredentials, config.SQLEndpoint, config.SQLDbName)
+	patternTable, err := NewPatternTable(sqlConnString, config.PatternTableName)
 	if err != nil {
 		s.log.Printf("Connect to database failed: %s", err)
 	}
 	s.patternTable = patternTable
-	cache, err := NewCache(sqlConnString, "proxy_table")
+	cache, err := NewCache(sqlConnString, config.ProxyTableName)
 	if err != nil {
 		s.log.Printf("Connect to database failed: %s", err)
 	}
@@ -338,7 +371,8 @@ func (s *HTTP) PrepareOutAddr(address string) string {
 		if err != nil {
 			s.log.Printf("Get proxy failed: %s", err)
 		}
-		return proxy.IP
+		ip := fmt.Sprintf((proxy.Endpoint + ":%d"), proxy.Port)
+		return ip
 	}
 	return ""
 }
