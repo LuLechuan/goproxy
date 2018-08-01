@@ -30,7 +30,7 @@ func (c *CacheImpl) GetProxy(name string) (Proxy, error) {
 
 	proxy, ok := c.proxyMap[name]
 	currentTime := time.Now()
-	start := currentTime.Add(time.Duration(-10) * time.Minute)
+	start := currentTime.Add(time.Duration(-5) * time.Minute)
 	outdated := isOutDated(start, proxy.Timestamp)
 	if ok && !outdated {
 		fmt.Println("The cache is used")

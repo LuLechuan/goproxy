@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -25,6 +26,7 @@ func NewPattern(pattern string, proxyName string, priority int) *Pattern {
 
 type PatternTable interface {
 	Get(url string) (string, bool)
+	GetFromCache(url string) (string, bool)
 	Delete(patternString string)
 }
 
@@ -32,6 +34,8 @@ type PatternTableImpl struct {
 	mutex     sync.Mutex
 	db        *sqlx.DB
 	tableName string
+	cache     []Pattern
+	timestamp time.Time
 }
 
 func NewPatternTable(sqlConn string, tableName string) (*PatternTableImpl, error) {
@@ -47,10 +51,17 @@ func NewPatternTable(sqlConn string, tableName string) (*PatternTableImpl, error
 		db:        db,
 		tableName: tableName,
 		mutex:     sync.Mutex{},
+		cache:     []Pattern{},
+		timestamp: time.Now(),
 	}, nil
 }
 
 func (pt *PatternTableImpl) Get(url string) (string, bool) {
+	patternFromCache, ok := pt.GetFromCache(url)
+	if ok {
+		return patternFromCache, true
+	}
+
 	results, err := pt.db.Query("SELECT pattern, proxyName, priority FROM " + pt.tableName)
 	var tempPattern Pattern
 	resultPattern := NewPattern("", "", 0)
@@ -71,7 +82,32 @@ func (pt *PatternTableImpl) Get(url string) (string, bool) {
 	if resultPattern.ProxyName == "" {
 		return "", false
 	}
+	pt.cache = append(pt.cache, *resultPattern)
 	return resultPattern.ProxyName, true
+}
+
+func (pt *PatternTableImpl) GetFromCache(url string) (string, bool) {
+	currentTime := time.Now()
+	start := currentTime.Add(time.Duration(-5) * time.Minute)
+	outdated := isOutDated(start, pt.timestamp)
+	if outdated {
+		pt.cache = pt.cache[:0]
+		pt.timestamp = time.Now()
+		return "", false
+	}
+
+	var max int = 0
+	var proxyName string = ""
+	for _, proxy := range pt.cache {
+		if strings.Contains(url, proxy.Patt) && proxy.Priority > max {
+			proxyName = proxy.ProxyName
+			max = proxy.Priority
+		}
+	}
+	if proxyName != "" {
+		return proxyName, true
+	}
+	return "", false
 }
 
 func (pt *PatternTableImpl) Delete(patternString string) {
