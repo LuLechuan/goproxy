@@ -20,6 +20,7 @@ def requestWeb(url):
     # r = requests.get(url)
     with open('result_matrix', 'a') as result_file:
         result_file.write("Status code: {} \n".format(r.status_code))
+        result_file.write("Length of response content: {} \n".format(len(r.content)))
         Total.total += 1
         result_file.write("Now we have: {} \n".format(Total.total))
 
@@ -34,7 +35,7 @@ def main():
     links.append("http://youtube.com")
     links.append("http://yahoo.com")
     links.append("http://www.mia.com")
-    links.append("http://www.prada.com/cn/zh/women/bags/jcr:content/par/product_grid.a.sortBy_0.html")
+    # links.append("http://www.prada.com/cn/zh/women/bags/jcr:content/par/product_grid.a.sortBy_0.html")
     executor = BoundedExecutor(20)
     for url in links:
         executor.submit(task, url)

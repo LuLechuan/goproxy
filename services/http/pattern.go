@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -50,20 +51,20 @@ func NewPatternTable(sqlConn string, tableName string) (*PatternTableImpl, error
 }
 
 func (pt *PatternTableImpl) Get(url string) (string, bool) {
-	results, err := pt.db.Query("SELECT DISTINCT * FROM " + pt.tableName)
-	var tempPattern *Pattern
+	results, err := pt.db.Query("SELECT pattern, proxyName, priority FROM " + pt.tableName)
+	var tempPattern Pattern
 	resultPattern := NewPattern("", "", 0)
 	var max int = 0
 	if err != nil {
-		fmt.Println("Getting from database failed")
+		fmt.Println("Getting from database failed - pattern table")
 	}
-	if results.Next() {
+	for results.Next() {
 		err = results.Scan(&tempPattern.Patt, &tempPattern.ProxyName, &tempPattern.Priority)
 		if err != nil {
 			fmt.Println("Scanning from rows failed")
 		}
 		if strings.Contains(url, tempPattern.Patt) && tempPattern.Priority > max {
-			resultPattern = tempPattern
+			*resultPattern = tempPattern
 			max = tempPattern.Priority
 		}
 	}

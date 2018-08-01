@@ -27,29 +27,35 @@ type CacheImpl struct {
 func (c *CacheImpl) GetProxy(name string) (Proxy, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	proxy, ok := c.proxyMap[name]
 	currentTime := time.Now()
 	start := currentTime.Add(time.Duration(-10) * time.Minute)
 	outdated := isOutDated(start, proxy.Timestamp)
 	if ok && !outdated {
+		fmt.Println("The cache is used")
 		return proxy, nil
 	}
-
 	db := c.db
 	table := c.tableName
 	c.Delete(name)
 
-	results, err := db.Query("SELECT DISTINCT source, endpoint, port, proxyType, user, pass, apiEndpoint FROM "+table+" WHERE source = ?", name)
+	results, err := db.Query("SELECT source, endpoint, port, proxyType, user, password, apiEndpoint FROM "+table+" WHERE source = ?", name)
 	if err != nil {
-		fmt.Println("Getting from database failed")
+		fmt.Println("The failed name is: " + name)
+		fmt.Println("Getting from database failed - cache")
 	}
 	if results.Next() {
 		err = results.Scan(&proxy.ProxyName, &proxy.Endpoint, &proxy.Port, &proxy.ProxyType, &proxy.User, &proxy.Pass, &proxy.APIEndpoint)
 		if err != nil {
 			fmt.Println("Scanning from rows failed")
 		}
+		currentTime := time.Now()
+		proxy.Timestamp = currentTime
 		c.Update(proxy.ProxyName, proxy)
+		fmt.Println("The cache is updated")
 	}
+
 	if proxy.ProxyType == "dynamic" {
 		ip, err := utils.GetIPFromAPI(proxy.APIEndpoint)
 		if err != nil {
@@ -70,14 +76,10 @@ func (c *CacheImpl) GetProxy(name string) (Proxy, error) {
 }
 
 func (c *CacheImpl) Delete(name string) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	delete(c.proxyMap, name)
 }
 
 func (c *CacheImpl) Update(name string, proxy Proxy) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	c.proxyMap[name] = proxy
 }
 

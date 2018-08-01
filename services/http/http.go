@@ -26,7 +26,7 @@ func LoadConfig(fileName string) *Config {
 	if fileName == "" {
 		fileName = "development" // default config
 	}
-	file, err := os.Open(fmt.Sprintf(".services/http/configs/%s.json", fileName))
+	file, err := os.Open(fmt.Sprintf("./services/http/configs/%s.json", fileName))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -347,6 +347,8 @@ func (s *HTTP) callback(inConn net.Conn) {
 
 	if parentAddress == "" {
 		useProxy = false
+	} else {
+		useProxy = true
 	}
 
 	s.log.Printf("use proxy : %v, %s", useProxy, address)
@@ -366,12 +368,14 @@ func (s *HTTP) PrepareOutAddr(address string) string {
 	str := strings.Split(address, ":")
 	url := str[0]
 	proxyName, useProxy := s.patternTable.Get(url)
+	s.log.Printf("Checking: proxyName: %s, useProxy: %t", proxyName, useProxy)
 	if useProxy {
 		proxy, err := s.cache.GetProxy(proxyName)
 		if err != nil {
 			s.log.Printf("Get proxy failed: %s", err)
 		}
 		ip := fmt.Sprintf((proxy.Endpoint + ":%d"), proxy.Port)
+		s.log.Printf("The proxy ip is %s", ip)
 		return ip
 	}
 	return ""

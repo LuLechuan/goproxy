@@ -350,8 +350,6 @@ func NewHTTPRequest(inConn *net.Conn, bufSize int, isBasicAuth bool, basicAuth *
 		conn: inConn,
 		log:  log,
 	}
-	log.Printf("The header len is %d", len(header))
-	log.Printf("The header is: %s", header)
 	for i, line := range header {
 		log.Printf("Header line %d is: %s", i, line)
 	}

@@ -16,7 +16,7 @@ CREATE TABLE `proxy` (
   `port` int,
   `proxyType` varchar(1024) NOT NULL,
   `user` varchar(1024),
-  `pass` varchar(1024),
+  `password` varchar(1024),
   `apiEndpoint` varchar(1024)
   PRIMARY KEY (`source`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
